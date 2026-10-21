@@ -11,24 +11,25 @@ permissions:
 
 jobs:
   build-iso:
-    name: Build FemboyOS Live ISO (Arch + Hyprland Pink)
+    name: Build FemboyOS Live ISO (Arch + Hyprland Pink + feminstall)
     runs-on: ubuntu-latest
     container:
       image: archlinux:latest
       options: --privileged
 
     steps:
-      - name: Update Pacman & Install ArchISO + Bootloader Toolchain on Host
+      - name: Update Pacman & Install ArchISO + Bootloader + Image Toolchain
         run: |
           pacman -Syu --noconfirm
           pacman -S --noconfirm --needed \
             archiso grub syslinux edk2-ovmf edk2-shell \
-            git base-devel squashfs-tools libisoburn dosfstools mtools
+            git base-devel squashfs-tools libisoburn dosfstools mtools \
+            python python-pillow
 
       - name: Checkout FemboyOS Repository
         uses: actions/checkout@v4
 
-      - name: Assemble ArchISO Profile (releng + FemboyOS Overlay)
+      - name: Assemble ArchISO Profile, Purge archinstall & Rebrand Bootloaders
         run: |
           mkdir -p /tmp/femboyos-profile
           cp -r /usr/share/archiso/configs/releng/* /tmp/femboyos-profile/
@@ -37,10 +38,50 @@ jobs:
             install -Dm644 LICENSE /tmp/femboyos-profile/airootfs/usr/share/licenses/femboyos/LICENSE
           fi
 
-          # Merge releng and FemboyOS package lists without duplicates or comments
+          # 1. Rebrand all Bootloader Menus (GRUB, Syslinux BIOS, systemd-boot UEFI)
+          find /tmp/femboyos-profile/grub /tmp/femboyos-profile/syslinux /tmp/femboyos-profile/efiboot \
+            -type f \( -name "*.cfg" -o -name "*.conf" \) \
+            -exec sed -i \
+              -e 's/Arch Linux install medium/FemboyOS Pink Edition (femlive \/ feminstall)/g' \
+              -e 's/Arch Linux/FemboyOS Pink Edition/g' {} +
+
+          # 2. Recolor BIOS Syslinux Boot Menu to Neon Pink / Magenta
+          if [ -f /tmp/femboyos-profile/syslinux/archiso_head.cfg ]; then
+            sed -i \
+              -e 's/MENU COLOR border.*/MENU COLOR border       35;40      #ffff69b4 #00000000 std/' \
+              -e 's/MENU COLOR title.*/MENU COLOR title        1;35;40    #ffffb1c8 #00000000 std/' \
+              -e 's/MENU COLOR sel.*/MENU COLOR sel          7;35;40    #ffffffff #ffff1493 all/' \
+              /tmp/femboyos-profile/syslinux/archiso_head.cfg
+          fi
+
+          # 3. Add Pink Theme Colors to UEFI GRUB (grub.cfg)
+          if [ -f /tmp/femboyos-profile/grub/grub.cfg ]; then
+            sed -i '1i set color_normal=light-magenta/black\nset color_highlight=white/magenta\n' \
+              /tmp/femboyos-profile/grub/grub.cfg
+          fi
+
+          # 4. Replace Arch Linux Blue Boot Splash (syslinux/splash.png) with Astolfo BSOD Wallpaper
+          python3 - << 'PYEOF'
+          import os
+          from PIL import Image
+          wall = "/tmp/femboyos-profile/airootfs/usr/share/backgrounds/femboyos/astolfo_bsod_gtx750.jpg"
+          splash_out = "/tmp/femboyos-profile/syslinux/splash.png"
+          if os.path.exists(wall):
+              img = Image.open(wall).convert("RGBA").resize((640, 480), Image.Resampling.LANCZOS)
+          else:
+              img = Image.new("RGBA", (640, 480), (31, 16, 24, 255))
+          overlay = Image.new("RGBA", (640, 480), (26, 10, 20, 110))
+          img = Image.alpha_composite(img, overlay).convert("RGB")
+          img.save(splash_out, "PNG")
+          print("[+] Generated custom 640x480 Pink Astolfo splash.png for bootloader!")
+          PYEOF
+
+          # 5. Merge package lists AND completely exclude archinstall!
           cat /usr/share/archiso/configs/releng/packages.x86_64 archiso/packages.x86_64 \
             | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
-            | grep -v '^#' | grep -v '^$' | sort -u > /tmp/femboyos-profile/packages.x86_64
+            | grep -v '^#' | grep -v '^$' \
+            | grep -v '^archinstall$' \
+            | sort -u > /tmp/femboyos-profile/packages.x86_64
 
       - name: Build FemboyOS ISO with mkarchiso
         run: |
