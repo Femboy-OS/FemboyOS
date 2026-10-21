@@ -11,17 +11,19 @@ permissions:
 
 jobs:
   build-iso:
-    name: Build FemboyOS Live ISO (Arch + Hyprland Pink, Unlicense)
+    name: Build FemboyOS Live ISO (Arch + Hyprland Pink)
     runs-on: ubuntu-latest
     container:
       image: archlinux:latest
       options: --privileged
 
     steps:
-      - name: Update Pacman & Install ArchISO Toolchain
+      - name: Update Pacman & Install ArchISO + Bootloader Toolchain on Host
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm --needed archiso git base-devel squashfs-tools libisoburn dosfstools mtools
+          pacman -S --noconfirm --needed \
+            archiso grub syslinux edk2-ovmf edk2-shell \
+            git base-devel squashfs-tools libisoburn dosfstools mtools
 
       - name: Checkout FemboyOS Repository
         uses: actions/checkout@v4
@@ -31,6 +33,9 @@ jobs:
           mkdir -p /tmp/femboyos-profile
           cp -r /usr/share/archiso/configs/releng/* /tmp/femboyos-profile/
           cp -rf archiso/* /tmp/femboyos-profile/
+          if [ -f LICENSE ]; then
+            install -Dm644 LICENSE /tmp/femboyos-profile/airootfs/usr/share/licenses/femboyos/LICENSE
+          fi
 
           # Merge releng and FemboyOS package lists without duplicates or comments
           cat /usr/share/archiso/configs/releng/packages.x86_64 archiso/packages.x86_64 \
