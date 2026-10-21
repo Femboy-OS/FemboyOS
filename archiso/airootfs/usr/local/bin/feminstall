@@ -1,0 +1,195 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# feminstall: Pseudo-Graphical (TUI) Pink Installer for FemboyOS
+# Replaces archinstall completely. Installs Arch Linux + Hyprland Pink Edition +
+# end-4/dots-hyprland + Astolfo GTX 750 BSOD Wallpaper + femlive by default.
+# License: FemboyOS Source-Available License v1.0 (BY-NC-NOEDU-NOMED)
+# ==============================================================================
+set -euo pipefail
+
+if [ "$(id -u)" -ne 0 ]; then
+    echo -e "\033[1;35m[feminstall] Elevating privileges via sudo...\033[0m"
+    exec sudo "$0" "$@"
+fi
+
+# Create custom Pink/Magenta DIALOGRC theme for pseudo-graphical interface
+export DIALOGRC="/tmp/feminstall_dialogrc"
+cat << 'EOF' > "${DIALOGRC}"
+use_shadow = ON
+use_colors = ON
+screen_color = (MAGENTA,BLACK,ON)
+shadow_color = (BLACK,BLACK,ON)
+dialog_color = (WHITE,BLACK,OFF)
+title_color = (LIGHTMAGENTA,BLACK,ON)
+border_color = (MAGENTA,BLACK,ON)
+button_active_color = (WHITE,MAGENTA,ON)
+button_inactive_color = (MAGENTA,BLACK,OFF)
+button_key_active_color = (WHITE,MAGENTA,ON)
+button_key_inactive_color = (LIGHTMAGENTA,BLACK,ON)
+button_label_active_color = (WHITE,MAGENTA,ON)
+button_label_inactive_color = (WHITE,BLACK,ON)
+inputbox_color = (WHITE,BLACK,OFF)
+inputbox_border_color = (MAGENTA,BLACK,ON)
+menubox_color = (WHITE,BLACK,OFF)
+menubox_border_color = (MAGENTA,BLACK,ON)
+item_color = (WHITE,BLACK,OFF)
+item_selected_color = (WHITE,MAGENTA,ON)
+tag_color = (LIGHTMAGENTA,BLACK,ON)
+tag_selected_color = (WHITE,MAGENTA,ON)
+tag_key_color = (LIGHTMAGENTA,BLACK,ON)
+tag_key_selected_color = (WHITE,MAGENTA,ON)
+check_color = (WHITE,BLACK,OFF)
+check_selected_color = (WHITE,MAGENTA,ON)
+gauge_color = (LIGHTMAGENTA,BLACK,ON)
+border2_color = (MAGENTA,BLACK,ON)
+inputbox_border2_color = (MAGENTA,BLACK,ON)
+menubox_border2_color = (MAGENTA,BLACK,ON)
+EOF
+
+BACKTITLE="FemboyOS Pink Installer (feminstall v1.0 — Zero archinstall, 100% Astolfo)"
+
+# 1. Welcome Screen
+dialog --backtitle "${BACKTITLE}" \
+    --title " [ Добро пожаловать в установщик FemboyOS ] " \
+    --yes-label "Начать установку" --no-label "Выход" \
+    --yesno "\nДобро пожаловать в псевдографический установщик feminstall!\n\nПо умолчанию на ваш диск будут установлены:\n  * Ядро Arch Linux + системные сервисы\n  * Hyprland + розовый конфиг end-4/dots-hyprland\n  * Дефолтные обои ОТВАЛ_ЧИПА_GTX_750_BRATAN\n  * Команда femlive для запуска всего GUI и обоев\n  * Подсистема запуска .exe (Windows 7/10) без Wine/Proton\n\nПродолжить установку FemboyOS на диск?" 18 70
+
+# 2. Select Target Disk
+mapfile -t DISKS < <(lsblk -d -n -p -o NAME,SIZE,MODEL -e 7,11 | awk '{print $1 "\n" $2 "_" $3}')
+if [ "${#DISKS[@]}" -eq 0 ]; then
+    dialog --backtitle "${BACKTITLE}" --title " Ошибка " --msgbox "Не найдено ни одного жёсткого диска для установки!" 8 50
+    exit 1
+fi
+
+TARGET_DISK=$(dialog --backtitle "${BACKTITLE}" \
+    --title " [ Шаг 1/4: Выбор диска для установки ] " \
+    --menu "\nВыберите целевой диск (ВСЕ ДАННЫЕ НА ДИСКЕ БУДУТ УДАЛЕНЫ):" 15 70 6 \
+    "${DISKS[@]}" 3>&1 1>&2 2>&3)
+
+# 3. Choose Hostname, Username, and Password
+HOSTNAME=$(dialog --backtitle "${BACKTITLE}" \
+    --title " [ Шаг 2/4: Имя компьютера (Hostname) ] " \
+    --inputbox "\nВведите имя хоста для вашей FemboyOS:" 10 60 "femboy-pc" 3>&1 1>&2 2>&3)
+
+USERNAME=$(dialog --backtitle "${BACKTITLE}" \
+    --title " [ Шаг 3/4: Имя пользователя ] " \
+    --inputbox "\nВведите имя пользователя (будет добавлен в wheel/sudo):" 10 60 "astolfo" 3>&1 1>&2 2>&3)
+
+USERPASS=$(dialog --backtitle "${BACKTITLE}" \
+    --title " [ Шаг 4/4: Пароль пользователя ${USERNAME} ] " \
+    --insecure --passwordbox "\nВведите пароль для пользователя ${USERNAME} и root:" 10 60 "femboy" 3>&1 1>&2 2>&3)
+
+# 4. Choose Autostart Mode for femlive
+AUTO_GUI=$(dialog --backtitle "${BACKTITLE}" \
+    --title " [ Режим запуска GUI (femlive) ] " \
+    --menu "\nКак должен запускаться розовый Hyprland после установки?" 13 72 2 \
+    "manual" "Запускать вручную по команде femlive (рекомендуется)" \
+    "auto"   "Автоматически вызывать femlive при входе на tty1" 3>&1 1>&2 2>&3)
+
+# 5. Final Confirmation
+dialog --backtitle "${BACKTITLE}" \
+    --title " [ Подтверждение разметки диска ] " \
+    --yes-label "Форматировать и установить" --no-label "Отмена" \
+    --yesno "\nДиск: ${TARGET_DISK}\nХост: ${HOSTNAME}\nПользователь: ${USERNAME}\nGUI: Hyprland Pink + Astolfo BSOD (команда femlive)\n\nВНИМАНИЕ: Диск ${TARGET_DISK} будет полностью очищен и размечен! Начать?" 15 70
+
+clear
+echo -e "\033[1;35m======================================================================"
+echo -e "  [feminstall] Установка FemboyOS на ${TARGET_DISK}..."
+echo -e "======================================================================\033[0m"
+
+# 6. Partition Disk (Hybrid GPT: BIOS Boot Partition + EFI System Partition + Root EXT4)
+umount -R /mnt 2>/dev/null || true
+wipefs -af "${TARGET_DISK}"
+sgdisk -Z "${TARGET_DISK}"
+sgdisk -n 1:0:+2M   -t 1:ef02 -c 1:"BIOS_BOOT" "${TARGET_DISK}"
+sgdisk -n 2:0:+512M -t 2:ef00 -c 2:"FEMBOY_EFI" "${TARGET_DISK}"
+sgdisk -n 3:0:0     -t 3:8300 -c 3:"FEMBOY_ROOT" "${TARGET_DISK}"
+partprobe "${TARGET_DISK}" || true
+sleep 2
+
+if [[ "${TARGET_DISK}" =~ "nvme" ]] || [[ "${TARGET_DISK}" =~ "mmcblk" ]]; then
+    PART_EFI="${TARGET_DISK}p2"
+    PART_ROOT="${TARGET_DISK}p3"
+else
+    PART_EFI="${TARGET_DISK}2"
+    PART_ROOT="${TARGET_DISK}3"
+fi
+
+mkfs.fat -F32 -n FEMBOY_EFI "${PART_EFI}"
+mkfs.ext4 -F -L FEMBOY_ROOT "${PART_ROOT}"
+
+mount "${PART_ROOT}" /mnt
+mkdir -p /mnt/boot/efi
+mount "${PART_EFI}" /mnt/boot/efi
+
+# 7. Copy Live System RootFS (including Hyprland, Pink Dots, Astolfo Wallpaper & femlive)
+echo -e "\033[1;35m[*] Копирование системы, Hyprland, розового конфига и обоев на диск...\033[0m"
+rsync -aAXH --info=progress2 \
+    --exclude={"/dev/*","/proc/*","/sys/*","/tmp/*","/run/*","/mnt/*","/media/*","/lost+found"} \
+    / /mnt/
+
+# Copy kernel from archiso mount if /boot/vmlinuz-linux was moved by mkarchiso
+for KPATH in /run/archiso/bootmnt/arch/boot/x86_64/vmlinuz-linux /boot/vmlinuz-linux; do
+    if [ -f "${KPATH}" ]; then
+        cp -f "${KPATH}" /mnt/boot/vmlinuz-linux
+        break
+    fi
+done
+
+# 8. Generate fstab & Configure Installed System in Chroot
+genfstab -U /mnt > /mnt/etc/fstab
+
+cat << CHROOT_EOF | arch-chroot /mnt /bin/bash
+set -euo pipefail
+
+echo "${HOSTNAME}" > /etc/hostname
+ln -sf /usr/share/zoneinfo/UTC /etc/localtime
+hwclock --systohc || true
+
+# Remove live-only mkinitcpio archiso hooks so installed system boots from SSD/HDD
+rm -f /etc/mkinitcpio.conf.d/archiso.conf
+rm -f /etc/systemd/system/getty@tty1.service.d/autologin.conf
+
+# Configure user & root accounts
+if ! id "${USERNAME}" >/dev/null 2>&1; then
+    useradd -m -G wheel,libvirt,kvm,video,audio,input -s /bin/zsh "${USERNAME}"
+fi
+echo "${USERNAME}:${USERPASS}" | chpasswd
+echo "root:${USERPASS}" | chpasswd
+echo "%wheel ALL=(ALL:ALL) NOPASSWD: ALL" > /etc/sudoers.d/99-femboyos
+
+# Ensure Hyprland Pink Config & Astolfo Wallpaper are installed in user home by default
+cp -rT /etc/skel "/home/${USERNAME}"
+if [ "${AUTO_GUI}" = "auto" ]; then
+    cat << 'ZEOF' > "/home/${USERNAME}/.zprofile"
+if [ -z "\${DISPLAY:-}" ] && [ "\${XDG_VTNR:-0}" -eq 1 ]; then
+    exec femlive
+fi
+ZEOF
+    cp "/home/${USERNAME}/.zprofile" "/home/${USERNAME}/.bash_profile"
+else
+    rm -f "/home/${USERNAME}/.zprofile" "/home/${USERNAME}/.bash_profile"
+fi
+chown -R "${USERNAME}:${USERNAME}" "/home/${USERNAME}"
+
+# Rebuild initramfs for standard disk boot
+mkinitcpio -P
+
+# Install Pink GRUB Bootloader (both BIOS & UEFI if supported)
+grub-install --target=i386-pc --recheck "${TARGET_DISK}" || true
+if [ -d /sys/firmware/efi ]; then
+    grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=FemboyOS --removable --recheck || true
+fi
+
+sed -i 's/^GRUB_DISTRIBUTOR=.*/GRUB_DISTRIBUTOR="FemboyOS Pink Edition"/' /etc/default/grub || true
+grub-mkconfig -o /boot/grub/grub.cfg
+sed -i '1i set color_normal=light-magenta/black\nset color_highlight=white/magenta\n' /boot/grub/grub.cfg || true
+CHROOT_EOF
+
+umount -R /mnt || true
+
+dialog --backtitle "${BACKTITLE}" \
+    --title " [ Установка FemboyOS завершена! ] " \
+    --msgbox "\nFemboyOS успешно установлена на ${TARGET_DISK}!\n\n  * Логин: ${USERNAME}\n  * Запуск розового Hyprland и обоев: команда femlive\n\nСейчас можно перезагрузить компьютер и извлечь установочный ISO." 14 68
+clear
+echo -e "\033[1;35m[+] Установка завершена! Введите 'reboot' для перезагрузки.\033[0m"
