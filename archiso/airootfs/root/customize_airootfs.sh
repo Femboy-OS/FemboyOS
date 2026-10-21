@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: Unlicense
+# License: FemboyOS Source-Available License v1.0 (BY-NC-NOEDU-NOMED)
 set -euo pipefail
 
 # Включение системных сервисов и binfmt-перехватчика .exe
@@ -18,6 +18,7 @@ cp -r /tmp/dots-hyprland/dots/. /etc/skel/
 rm -rf /tmp/dots-hyprland
 
 # Подключение розового оверлея и обоев Astolfo GTX 750 BSOD
+mkdir -p /etc/skel/.config/hypr
 echo "" >> /etc/skel/.config/hypr/hyprland.conf
 echo "# FemboyOS Pink & Astolfo BSOD Theme Override" >> /etc/skel/.config/hypr/hyprland.conf
 echo "source = ~/.config/hypr/custom/femboy_pink.conf" >> /etc/skel/.config/hypr/hyprland.conf
