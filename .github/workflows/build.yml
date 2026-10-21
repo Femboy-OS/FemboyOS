@@ -1,0 +1,67 @@
+name: Build FemboyOS ArchISO
+
+on:
+  push:
+    branches: [ "main", "master" ]
+    tags: [ "v*" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-iso:
+    name: Build FemboyOS Live ISO (Arch + Hyprland Pink, Unlicense)
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+      options: --privileged
+
+    steps:
+      - name: Update Pacman & Install ArchISO Toolchain
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm --needed archiso git base-devel squashfs-tools libisoburn dosfstools mtools
+
+      - name: Checkout FemboyOS Repository
+        uses: actions/checkout@v4
+
+      - name: Assemble ArchISO Profile (releng + FemboyOS Overlay)
+        run: |
+          mkdir -p /tmp/femboyos-profile
+          cp -r /usr/share/archiso/configs/releng/* /tmp/femboyos-profile/
+          cp -rf archiso/* /tmp/femboyos-profile/
+
+          # Merge releng and FemboyOS package lists without duplicates or comments
+          cat /usr/share/archiso/configs/releng/packages.x86_64 archiso/packages.x86_64 \
+            | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
+            | grep -v '^#' | grep -v '^$' | sort -u > /tmp/femboyos-profile/packages.x86_64
+
+      - name: Build FemboyOS ISO with mkarchiso
+        run: |
+          mkdir -p /tmp/work /tmp/out
+          mkarchiso -v -w /tmp/work -o /tmp/out /tmp/femboyos-profile
+          ls -lh /tmp/out/
+
+      - name: Generate SHA256 Checksums
+        run: |
+          cd /tmp/out
+          sha256sum *.iso > SHA256SUMS.txt
+
+      - name: Upload FemboyOS ISO Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FemboyOS-x86_64-ISO
+          path: |
+            /tmp/out/*.iso
+            /tmp/out/SHA256SUMS.txt
+          retention-days: 14
+
+      - name: Publish GitHub Release (on Tag Push)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            /tmp/out/*.iso
+            /tmp/out/SHA256SUMS.txt
+          generate_release_notes: true
