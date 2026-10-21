@@ -1,8 +1,8 @@
 # --- Base Arch Linux & Boot ---
 base
 base-devel
-linux-zen
-linux-zen-headers
+linux
+linux-headers
 linux-firmware
 mkinitcpio
 mkinitcpio-archiso
@@ -30,9 +30,10 @@ hyprland
 hyprlock
 hypridle
 hyprpicker
+hyprpaper
+awww
 xdg-desktop-portal-hyprland
 xdg-desktop-portal-gtk
-swww
 wl-clipboard
 cliphist
 grim
@@ -54,7 +55,7 @@ noto-fonts-emoji
 papirus-icon-theme
 
 # --- Windows 7 & 10 App Subsystem (NO WINE / NO PROTON: KVM + FreeRDP Seamless) ---
-qemu-full
+qemu-desktop
 libvirt
 virt-manager
 dnsmasq
@@ -63,4 +64,4 @@ swtpm
 freerdp
 socat
 dialog
-netcat
+openbsd-netcat
