@@ -1,0 +1,24 @@
+{
+  "theme_name": "FemboyOS Astolfo Pink",
+  "spdx": "Unlicense",
+  "wallpaper": "/usr/share/backgrounds/femboyos/astolfo_bsod_gtx750.jpg",
+  "scheme": "scheme-vibrant",
+  "colors": {
+    "primary": "#ffb1c8",
+    "on_primary": "#5e1133",
+    "primary_container": "#7b2949",
+    "on_primary_container": "#ffd9e2",
+    "secondary": "#f4b8e4",
+    "on_secondary": "#4b2542",
+    "secondary_container": "#653b5a",
+    "on_secondary_container": "#ffd7f5",
+    "tertiary": "#ff69b4",
+    "background": "#1a0f16",
+    "on_background": "#f5dde6",
+    "surface": "#1f1018",
+    "on_surface": "#f5dde6",
+    "surface_variant": "#514347",
+    "on_surface_variant": "#d5c2c6",
+    "outline": "#ff85c0"
+  }
+}
