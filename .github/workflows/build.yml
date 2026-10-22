@@ -29,7 +29,7 @@ jobs:
       - name: Checkout FemboyOS Repository
         uses: actions/checkout@v4
 
-      - name: Assemble FemboyOS Profile & Replace All Arch Linux Branding with FemboyOS
+      - name: Assemble FemboyOS Profile & Inject Post-Pacstrap Rebranding
         run: |
           mkdir -p /tmp/femboyos-profile
           cp -r /usr/share/archiso/configs/releng/* /tmp/femboyos-profile/
@@ -38,32 +38,18 @@ jobs:
             install -Dm644 LICENSE /tmp/femboyos-profile/airootfs/usr/share/licenses/femboyos/LICENSE
           fi
 
-          # 1. Remove releng Arch Linux scripts & broken .zlogin hook
-          rm -f /tmp/femboyos-profile/airootfs/root/.zlogin \
+          # 1. CRITICAL: Do NOT put /usr/lib/os-release or /etc/os-release in airootfs before pacstrap
+          #    (otherwise the 'filesystem' package fails with "exists in filesystem"!)
+          rm -f /tmp/femboyos-profile/airootfs/usr/lib/os-release \
+                /tmp/femboyos-profile/airootfs/etc/os-release \
+                /tmp/femboyos-profile/airootfs/etc/issue \
+                /tmp/femboyos-profile/airootfs/root/.zlogin \
                 /tmp/femboyos-profile/airootfs/root/.automated_script.sh \
                 /tmp/femboyos-profile/airootfs/usr/local/bin/Installation_guide
 
-          # 2. Force FemboyOS hostname, /etc/issue, /etc/os-release, and /etc/motd
-          mkdir -p /tmp/femboyos-profile/airootfs/etc /tmp/femboyos-profile/airootfs/usr/lib
+          # 2. Pre-pacstrap safe files (hostname & motd are in filesystem's backup array)
           echo "femboyos" > /tmp/femboyos-profile/airootfs/etc/hostname
           printf "127.0.0.1\tlocalhost femboyos\n::1\t\tlocalhost femboyos\n" > /tmp/femboyos-profile/airootfs/etc/hosts
-          printf 'FemboyOS Pink Edition \\r (\\l)\n\n' > /tmp/femboyos-profile/airootfs/etc/issue
-
-          cat << 'OSREL_EOF' > /tmp/femboyos-profile/airootfs/etc/os-release
-          NAME="FemboyOS"
-          PRETTY_NAME="FemboyOS Pink Edition"
-          ID=femboyos
-          ID_LIKE=arch
-          BUILD_ID=rolling
-          ANSI_COLOR="38;2;255;105;180"
-          HOME_URL="https://github.com/femboyos/femboyos"
-          DOCUMENTATION_URL="https://github.com/femboyos/femboyos"
-          SUPPORT_URL="https://github.com/femboyos/femboyos"
-          BUG_REPORT_URL="https://github.com/femboyos/femboyos"
-          LOGO=femboyos
-          OSREL_EOF
-          sed -i 's/^[[:space:]]*//' /tmp/femboyos-profile/airootfs/etc/os-release
-          cp -f /tmp/femboyos-profile/airootfs/etc/os-release /tmp/femboyos-profile/airootfs/usr/lib/os-release
 
           cat << 'MOTD_EOF' > /tmp/femboyos-profile/airootfs/etc/motd
 
@@ -78,14 +64,180 @@ jobs:
 
           MOTD_EOF
 
-          # 3. Rebrand all Bootloader Menus (GRUB, Syslinux BIOS, systemd-boot UEFI)
+          # 3. Guarantee root-compatible femlive script in /usr/local/bin/femlive
+          mkdir -p /tmp/femboyos-profile/airootfs/usr/local/bin
+          cat << 'FEMLIVE_EOF' > /tmp/femboyos-profile/airootfs/usr/local/bin/femlive
+          #!/usr/bin/env bash
+          set -euo pipefail
+          WALLPAPER="/usr/share/backgrounds/femboyos/astolfo_bsod_gtx750.jpg"
+          HYPR_DIR="${HOME}/.config/hypr"
+          CUSTOM_CONF="${HYPR_DIR}/custom/femboy_pink.conf"
+          echo -e "\033[1;35m[*] Starting femlive — FemboyOS Pink Hyprland Session...\033[0m"
+          UID_NUM="$(id -u)"
+          export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/${UID_NUM}}"
+          mkdir -p "${XDG_RUNTIME_DIR}"
+          chown "${UID_NUM}:${UID_NUM}" "${XDG_RUNTIME_DIR}" || true
+          chmod 0700 "${XDG_RUNTIME_DIR}"
+          mkdir -p "${HYPR_DIR}/custom"
+          if [ -d /etc/skel/.config ]; then
+              cp -rn /etc/skel/.config/* "${HOME}/.config/" 2>/dev/null || true
+          fi
+          if [ -f /etc/skel/.config/hypr/custom/femboy_pink.conf ]; then
+              cp -f /etc/skel/.config/hypr/custom/femboy_pink.conf "${CUSTOM_CONF}"
+          elif [ ! -f "${CUSTOM_CONF}" ]; then
+              cat << 'PCONF' > "${CUSTOM_CONF}"
+          env = WLR_NO_HARDWARE_CURSORS,1
+          env = WLR_RENDERER_ALLOW_SOFTWARE,1
+          env = AQ_NO_MODIFIERS,1
+          env = WLR_DRM_NO_MODIFIERS,1
+          monitor = ,preferred,auto,1
+          cursor {
+              no_hardware_cursors = true
+          }
+          ecosystem {
+              no_update_news = true
+              no_donation_nag = true
+          }
+          input {
+              kb_layout = us,ru
+              kb_options = grp:alt_shift_toggle
+              follow_mouse = 1
+          }
+          general {
+              gaps_in = 6
+              gaps_out = 12
+              border_size = 3
+              col.active_border = rgba(ff69b4ff) rgba(ffb1c8ff) rgba(ff1493ff) 45deg
+              col.inactive_border = rgba(4a2538aa)
+              layout = dwindle
+          }
+          decoration {
+              rounding = 18
+              active_opacity = 0.94
+              inactive_opacity = 0.86
+              blur {
+                  enabled = true
+                  size = 8
+                  passes = 3
+              }
+              shadow {
+                  enabled = true
+                  range = 24
+                  render_power = 3
+                  color = rgba(ff69b466)
+                  color_inactive = rgba(1f101844)
+              }
+          }
+          bind = SUPER, Return, exec, kitty
+          bind = SUPER, Q, exec, kitty
+          bind = SUPER, D, exec, fuzzel
+          bind = SUPER, I, exec, kitty -e feminstall
+          bind = SUPER, C, killactive,
+          bind = SUPER, M, exit,
+          bind = SUPER, V, togglefloating,
+          bind = SUPER, F, fullscreen,
+          bindm = SUPER, mouse:272, movewindow
+          bindm = SUPER, mouse:273, resizewindow
+          exec-once = swaybg -i /usr/share/backgrounds/femboyos/astolfo_bsod_gtx750.jpg -m fill
+          exec-once = awww-daemon --format xrgb && awww img /usr/share/backgrounds/femboyos/astolfo_bsod_gtx750.jpg --transition-type grow --transition-pos 0.85,0.85 --transition-duration 1.5
+          exec-once = waybar
+          exec-once = kitty
+          PCONF
+          fi
+          if [ ! -f "${HYPR_DIR}/hyprland.conf" ]; then
+              echo "source = ~/.config/hypr/custom/femboy_pink.conf" > "${HYPR_DIR}/hyprland.conf"
+          elif ! grep -q "femboy_pink.conf" "${HYPR_DIR}/hyprland.conf"; then
+              echo "" >> "${HYPR_DIR}/hyprland.conf"
+              echo "source = ~/.config/hypr/custom/femboy_pink.conf" >> "${HYPR_DIR}/hyprland.conf"
+          fi
+          export AQ_NO_MODIFIERS=1
+          export WLR_DRM_NO_MODIFIERS=1
+          export WLR_NO_HARDWARE_CURSORS=1
+          export WLR_RENDERER_ALLOW_SOFTWARE=1
+          export XDG_CURRENT_DESKTOP=Hyprland
+          export XDG_SESSION_TYPE=wayland
+          export XDG_SESSION_DESKTOP=Hyprland
+          HYPR_FLAGS=()
+          if [ "${UID_NUM}" -eq 0 ]; then
+              HYPR_FLAGS+=(--i-am-really-stupid)
+          fi
+          if command -v dbus-run-session >/dev/null 2>&1; then
+              exec dbus-run-session -- Hyprland "${HYPR_FLAGS[@]}"
+          else
+              exec Hyprland "${HYPR_FLAGS[@]}"
+          fi
+          FEMLIVE_EOF
+          sed -i 's/^          //' /tmp/femboyos-profile/airootfs/usr/local/bin/femlive
+          chmod 0755 /tmp/femboyos-profile/airootfs/usr/local/bin/femlive
+
+          # 4. Inject post-pacstrap OS rebranding into customize_airootfs.sh
+          mkdir -p /tmp/femboyos-profile/airootfs/root
+          cat << 'CUST_EOF' > /tmp/femboyos-profile/airootfs/root/customize_airootfs.sh
+          #!/usr/bin/env bash
+          set -euo pipefail
+          pacman -Rns --noconfirm archinstall 2>/dev/null || true
+          rm -f /usr/bin/archinstall /usr/local/bin/Installation_guide /root/.zlogin /root/.automated_script.sh
+
+          echo "femboyos" > /etc/hostname
+          printf "127.0.0.1\tlocalhost femboyos\n::1\t\tlocalhost femboyos\n" > /etc/hosts
+          printf 'FemboyOS Pink Edition \\r (\\l)\n\n' > /etc/issue
+
+          cat << 'OSREL' > /usr/lib/os-release
+          NAME="FemboyOS"
+          PRETTY_NAME="FemboyOS Pink Edition"
+          ID=femboyos
+          ID_LIKE=arch
+          BUILD_ID=rolling
+          ANSI_COLOR="38;2;255;105;180"
+          HOME_URL="https://github.com/femboyos/femboyos"
+          DOCUMENTATION_URL="https://github.com/femboyos/femboyos"
+          SUPPORT_URL="https://github.com/femboyos/femboyos"
+          BUG_REPORT_URL="https://github.com/femboyos/femboyos"
+          LOGO=femboyos
+          OSREL
+          ln -sf ../usr/lib/os-release /etc/os-release
+
+          systemctl enable NetworkManager.service || true
+          systemctl enable seatd.service || true
+          systemctl enable libvirtd.service || true
+          systemctl enable systemd-binfmt.service || true
+
+          useradd -m -G wheel,seat,libvirt,kvm,video,audio,input -s /bin/zsh astolfo || true
+          echo "astolfo:femboy" | chpasswd
+          echo "root:femboy" | chpasswd
+          echo "%wheel ALL=(ALL:ALL) NOPASSWD: ALL" > /etc/sudoers.d/99-femboyos
+
+          git clone --depth=1 https://github.com/end-4/dots-hyprland.git /tmp/dots-hyprland || true
+          if [ -d /tmp/dots-hyprland/dots ]; then
+              cp -r /tmp/dots-hyprland/dots/. /etc/skel/
+          fi
+          rm -rf /tmp/dots-hyprland
+
+          mkdir -p /etc/skel/.config/hypr
+          if ! grep -q "femboy_pink.conf" /etc/skel/.config/hypr/hyprland.conf 2>/dev/null; then
+              echo "" >> /etc/skel/.config/hypr/hyprland.conf
+              echo "source = ~/.config/hypr/custom/femboy_pink.conf" >> /etc/skel/.config/hypr/hyprland.conf
+          fi
+
+          cp -rT /etc/skel /home/astolfo
+          chown -R astolfo:astolfo /home/astolfo
+          cp -rT /etc/skel /root
+          chmod 0755 /usr/local/bin/femlive /usr/local/bin/feminstall /usr/local/bin/femboy-winrun 2>/dev/null || true
+
+          mkinitcpio -P
+          CUST_EOF
+          sed -i 's/^          //' /tmp/femboyos-profile/airootfs/root/customize_airootfs.sh
+          chmod 0755 /tmp/femboyos-profile/airootfs/root/customize_airootfs.sh
+
+          # 5. Rebrand all Bootloader Menus & profiledef.sh
+          sed -i 's/Arch Linux/FemboyOS/g' /tmp/femboyos-profile/profiledef.sh || true
           find /tmp/femboyos-profile/grub /tmp/femboyos-profile/syslinux /tmp/femboyos-profile/efiboot \
             -type f \( -name "*.cfg" -o -name "*.conf" \) \
             -exec sed -i \
               -e 's/Arch Linux install medium/FemboyOS Pink Edition (femlive \/ feminstall)/g' \
               -e 's/Arch Linux/FemboyOS/g' {} +
 
-          # 4. Recolor BIOS Syslinux Boot Menu to Neon Pink / Magenta
+          # 6. Recolor BIOS Syslinux Boot Menu to Neon Pink / Magenta
           if [ -f /tmp/femboyos-profile/syslinux/archiso_head.cfg ]; then
             sed -i \
               -e 's/MENU COLOR border.*/MENU COLOR border       35;40      #ffff69b4 #00000000 std/' \
@@ -94,13 +246,13 @@ jobs:
               /tmp/femboyos-profile/syslinux/archiso_head.cfg
           fi
 
-          # 5. Add Pink Theme Colors to UEFI GRUB (grub.cfg)
+          # 7. Add Pink Theme Colors to UEFI GRUB (grub.cfg)
           if [ -f /tmp/femboyos-profile/grub/grub.cfg ]; then
             sed -i '1i set color_normal=light-magenta/black\nset color_highlight=white/magenta\n' \
               /tmp/femboyos-profile/grub/grub.cfg
           fi
 
-          # 6. Replace Boot Splash (syslinux/splash.png) with Astolfo BSOD Wallpaper
+          # 8. Replace Boot Splash (syslinux/splash.png) with Astolfo BSOD Wallpaper
           python3 - << 'PYEOF'
           import os
           from PIL import Image
@@ -116,9 +268,12 @@ jobs:
           print("[+] Generated custom 640x480 Pink Astolfo splash.png for bootloader!")
           PYEOF
 
-          # 7. Merge package lists (includes swaybg, waybar, seatd; excludes archinstall!)
-          cat /usr/share/archiso/configs/releng/packages.x86_64 archiso/packages.x86_64 \
-            | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
+          # 9. Merge package lists (guarantees swaybg, waybar, seatd, dialog, rsync; excludes archinstall!)
+          {
+            cat /usr/share/archiso/configs/releng/packages.x86_64
+            cat archiso/packages.x86_64 2>/dev/null || true
+            printf "swaybg\nwaybar\nseatd\ndialog\nrsync\ngptfdisk\n"
+          } | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
             | grep -v '^#' | grep -v '^$' \
             | grep -v '^archinstall$' \
             | sort -u > /tmp/femboyos-profile/packages.x86_64
