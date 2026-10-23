@@ -2,7 +2,8 @@
 # ==============================================================================
 # feminstall: Pseudo-Graphical (TUI) Pink Installer for FemboyOS
 # Replaces archinstall completely. Installs FemboyOS + Hyprland Pink Edition +
-# end-4/dots-hyprland + Astolfo GTX 750 BSOD Wallpaper + femlive by default.
+# Astolfo GTX 750 BSOD Wallpaper + femlive by default.
+# (Pure ASCII English UI so 100% of characters render cleanly on tty1!)
 # License: FemboyOS Source-Available License v1.0 (BY-NC-NOEDU-NOMED)
 # ==============================================================================
 set -euo pipefail
@@ -45,50 +46,50 @@ inputbox_border2_color = (MAGENTA,BLACK,ON)
 menubox_border2_color = (MAGENTA,BLACK,ON)
 EOF
 
-BACKTITLE="FemboyOS Pink Installer (feminstall v2.0 — 100% FemboyOS)"
+BACKTITLE="FemboyOS Pink Installer (feminstall v3.0 - 100% FemboyOS)"
 
 dialog --backtitle "${BACKTITLE}" \
-    --title " [ Добро пожаловать в установщик FemboyOS ] " \
-    --yes-label "Начать установку" --no-label "Выход" \
-    --yesno "\nДобро пожаловать в псевдографический установщик feminstall!\n\nПо умолчанию на ваш диск будут установлены:\n  * Ядро и системное окружение FemboyOS Pink Edition\n  * Hyprland + розовый конфиг end-4/dots-hyprland\n  * Дефолтные обои ОТВАЛ_ЧИПА_GTX_750_BRATAN\n  * Команда femlive для запуска всего GUI и обоев\n  * Подсистема запуска .exe (Windows 7/10) без Wine/Proton\n\nПродолжить установку FemboyOS на диск?" 18 70
+    --title " [ Welcome to FemboyOS Pink Installer ] " \
+    --yes-label "Start Install" --no-label "Exit" \
+    --yesno "\nWelcome to the feminstall TUI installer!\n\nBy default, the following components will be installed to your disk:\n  * FemboyOS Pink Edition Kernel & Core System\n  * Hyprland + Pink Theme + Pink Waybar & Kitty\n  * Default Astolfo GTX 750 BSOD Wallpaper\n  * 'femlive' command to launch the full Pink GUI & Wallpaper\n  * Windows 7/10 (.exe) Subsystem without Wine/Proton\n\nContinue with FemboyOS disk installation?" 18 72
 
 mapfile -t DISKS < <(lsblk -d -n -p -o NAME,SIZE,MODEL -e 7,11 | awk '{print $1 "\n" $2 "_" $3}')
 if [ "${#DISKS[@]}" -eq 0 ]; then
-    dialog --backtitle "${BACKTITLE}" --title " Ошибка " --msgbox "Не найдено ни одного жёсткого диска для установки!" 8 50
+    dialog --backtitle "${BACKTITLE}" --title " Error " --msgbox "No target hard disks found for installation!" 8 50
     exit 1
 fi
 
 TARGET_DISK=$(dialog --backtitle "${BACKTITLE}" \
-    --title " [ Шаг 1/4: Выбор диска для установки ] " \
-    --menu "\nВыберите целевой диск (ВСЕ ДАННЫЕ НА ДИСКЕ БУДУТ УДАЛЕНЫ):" 15 70 6 \
+    --title " [ Step 1/4: Select Target Disk ] " \
+    --menu "\nSelect target disk (ALL DATA ON THIS DISK WILL BE ERASED):" 15 70 6 \
     "${DISKS[@]}" 3>&1 1>&2 2>&3)
 
 HOSTNAME=$(dialog --backtitle "${BACKTITLE}" \
-    --title " [ Шаг 2/4: Имя компьютера (Hostname) ] " \
-    --inputbox "\nВведите имя хоста для вашей FemboyOS:" 10 60 "femboyos" 3>&1 1>&2 2>&3)
+    --title " [ Step 2/4: System Hostname ] " \
+    --inputbox "\nEnter hostname for your FemboyOS machine:" 10 60 "femboyos" 3>&1 1>&2 2>&3)
 
 USERNAME=$(dialog --backtitle "${BACKTITLE}" \
-    --title " [ Шаг 3/4: Имя пользователя ] " \
-    --inputbox "\nВведите имя пользователя (будет добавлен в wheel/sudo):" 10 60 "astolfo" 3>&1 1>&2 2>&3)
+    --title " [ Step 3/4: Username ] " \
+    --inputbox "\nEnter username (will be added to wheel/sudo):" 10 60 "astolfo" 3>&1 1>&2 2>&3)
 
 USERPASS=$(dialog --backtitle "${BACKTITLE}" \
-    --title " [ Шаг 4/4: Пароль пользователя ${USERNAME} ] " \
-    --insecure --passwordbox "\nВведите пароль для пользователя ${USERNAME} и root:" 10 60 "femboy" 3>&1 1>&2 2>&3)
+    --title " [ Step 4/4: Password for ${USERNAME} ] " \
+    --insecure --passwordbox "\nEnter password for ${USERNAME} and root:" 10 60 "femboy" 3>&1 1>&2 2>&3)
 
 AUTO_GUI=$(dialog --backtitle "${BACKTITLE}" \
-    --title " [ Режим запуска GUI (femlive) ] " \
-    --menu "\nКак должен запускаться розовый Hyprland после установки?" 13 72 2 \
-    "manual" "Запускать по команде femlive (рекомендуется)" \
-    "auto"   "Автоматически запускать femlive при старте системы" 3>&1 1>&2 2>&3)
+    --title " [ GUI Launch Mode (femlive) ] " \
+    --menu "\nHow should Pink Hyprland start after installation?" 13 72 2 \
+    "manual" "Start manually by typing 'femlive' (Recommended)" \
+    "auto"   "Automatically start 'femlive' on login" 3>&1 1>&2 2>&3)
 
 dialog --backtitle "${BACKTITLE}" \
-    --title " [ Подтверждение разметки диска ] " \
-    --yes-label "Форматировать и установить" --no-label "Отмена" \
-    --yesno "\nДиск: ${TARGET_DISK}\nСистема: FemboyOS (${HOSTNAME})\nПользователь: ${USERNAME}\nGUI: Hyprland Pink + Astolfo BSOD (команда femlive)\n\nВНИМАНИЕ: Диск ${TARGET_DISK} будет полностью очищен и размечен! Начать?" 15 70
+    --title " [ Confirm Disk Partitioning ] " \
+    --yes-label "Format & Install" --no-label "Cancel" \
+    --yesno "\nTarget Disk: ${TARGET_DISK}\nSystem:      FemboyOS (${HOSTNAME})\nUser:        ${USERNAME}\nDesktop:     Hyprland Pink + Astolfo BSOD (femlive)\n\nWARNING: ${TARGET_DISK} will be completely formatted! Proceed?" 15 70
 
 clear
 echo -e "\033[1;35m======================================================================"
-echo -e "  [feminstall] Установка FemboyOS на ${TARGET_DISK}..."
+echo -e "  [feminstall] Installing FemboyOS to ${TARGET_DISK}..."
 echo -e "======================================================================\033[0m"
 
 umount -R /mnt 2>/dev/null || true
@@ -115,7 +116,7 @@ mount "${PART_ROOT}" /mnt
 mkdir -p /mnt/boot/efi
 mount "${PART_EFI}" /mnt/boot/efi
 
-echo -e "\033[1;35m[*] Копирование FemboyOS, Hyprland, розового конфига и обоев на диск...\033[0m"
+echo -e "\033[1;35m[*] Copying FemboyOS, Hyprland, Pink Config & Wallpaper to disk...\033[0m"
 rsync -aAXH --info=progress2 \
     --exclude={"/dev/*","/proc/*","/sys/*","/tmp/*","/run/*","/mnt/*","/media/*","/lost+found"} \
     / /mnt/
@@ -138,9 +139,9 @@ cat << 'HOSTS_EOF' > /etc/hosts
 ::1         localhost ${HOSTNAME}
 HOSTS_EOF
 
-echo 'FemboyOS Pink Edition \r (\l)' > /etc/issue
+printf 'FemboyOS Pink Edition \\r (\\l)\n\n' > /etc/issue
 
-cat << 'OSREL_EOF' > /etc/os-release
+cat << 'OSREL_EOF' > /usr/lib/os-release
 NAME="FemboyOS"
 PRETTY_NAME="FemboyOS Pink Edition"
 ID=femboyos
@@ -153,7 +154,7 @@ SUPPORT_URL="https://github.com/femboyos/femboyos"
 BUG_REPORT_URL="https://github.com/femboyos/femboyos"
 LOGO=femboyos
 OSREL_EOF
-cp -f /etc/os-release /usr/lib/os-release
+ln -sf ../usr/lib/os-release /etc/os-release
 
 ln -sf /usr/share/zoneinfo/UTC /etc/localtime
 hwclock --systohc || true
@@ -161,6 +162,7 @@ hwclock --systohc || true
 rm -f /etc/mkinitcpio.conf.d/archiso.conf
 rm -f /etc/systemd/system/getty@tty1.service.d/autologin.conf
 rm -f /root/.zlogin /root/.automated_script.sh /usr/local/bin/Installation_guide
+rm -f /root/.config/hypr/*.lua /etc/skel/.config/hypr/*.lua
 
 if ! id "${USERNAME}" >/dev/null 2>&1; then
     useradd -m -G wheel,libvirt,kvm,video,audio,input -s /bin/zsh "${USERNAME}"
@@ -171,6 +173,8 @@ echo "%wheel ALL=(ALL:ALL) NOPASSWD: ALL" > /etc/sudoers.d/99-femboyos
 
 cp -rT /etc/skel "/home/${USERNAME}"
 cp -rT /etc/skel /root
+rm -f "/home/${USERNAME}/.config/hypr/"*.lua /root/.config/hypr/*.lua 2>/dev/null || true
+
 if [ "${AUTO_GUI}" = "auto" ]; then
     cat << 'ZEOF' > "/home/${USERNAME}/.zprofile"
 if [ -z "\${DISPLAY:-}" ] && [ "\${XDG_VTNR:-0}" -eq 1 ]; then
@@ -197,7 +201,7 @@ CHROOT_EOF
 umount -R /mnt || true
 
 dialog --backtitle "${BACKTITLE}" \
-    --title " [ Установка FemboyOS завершена! ] " \
-    --msgbox "\nFemboyOS успешно установлена на ${TARGET_DISK}!\n\n  * Логин: ${USERNAME}\n  * Запуск розового Hyprland и обоев: команда femlive\n\nСейчас можно перезагрузить компьютер и извлечь установочный ISO." 14 68
+    --title " [ FemboyOS Installation Complete! ] " \
+    --msgbox "\nFemboyOS has been installed to ${TARGET_DISK}!\n\n  * Login user: ${USERNAME}\n  * Launch Pink Hyprland & Wallpaper: femlive\n\nYou can now reboot and remove the installation ISO." 14 68
 clear
-echo -e "\033[1;35m[+] Установка FemboyOS завершена! Введите 'reboot' для перезагрузки.\033[0m"
+echo -e "\033[1;35m[+] FemboyOS installation complete! Type 'reboot' to restart.\033[0m"
